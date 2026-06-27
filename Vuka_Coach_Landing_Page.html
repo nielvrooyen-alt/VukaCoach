@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VukaCoach AI — Your Personal Coach in WhatsApp</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --black: #0D0D0D;
+      --offwhite: #F5F3EE;
+      --green: #00E87A;
+      --green-dim: #00c468;
+      --mid: #1A1A1A;
+      --muted: #888;
+      --border: #2A2A2A;
+      --card: #151515;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--black);
+      color: var(--offwhite);
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* NAV */
+    nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 40px;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: rgba(13,13,13,0.95);
+      backdrop-filter: blur(8px);
+      z-index: 100;
+    }
+
+    .logo {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 1.2rem;
+      letter-spacing: -0.5px;
+    }
+
+    .logo span { color: var(--green); }
+
+    nav a {
+      color: var(--offwhite);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      background: var(--green);
+      color: var(--black);
+      padding: 10px 22px;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+
+    nav a:hover { background: var(--green-dim); }
+
+    /* HERO */
+    .hero {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 100px 40px 80px;
+      text-align: center;
+    }
+
+    .hero-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--green);
+      border: 1px solid var(--green);
+      padding: 6px 14px;
+      border-radius: 100px;
+      margin-bottom: 32px;
+    }
+
+    .hero-eyebrow::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      background: var(--green);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.8); }
+    }
+
+    h1 {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: clamp(2.6rem, 6vw, 4.2rem);
+      line-height: 1.08;
+      letter-spacing: -2px;
+      margin-bottom: 24px;
+      color: var(--offwhite);
+    }
+
+    h1 em {
+      font-style: normal;
+      color: var(--green);
+    }
+
+    .hero-sub {
+      font-size: 1.15rem;
+      color: #aaa;
+      max-width: 560px;
+      margin: 0 auto 40px;
+      line-height: 1.7;
+    }
+
+    .cta-group {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn-primary {
+      background: var(--green);
+      color: var(--black);
+      font-weight: 700;
+      font-size: 1rem;
+      padding: 16px 36px;
+      border-radius: 4px;
+      text-decoration: none;
+      transition: background 0.2s, transform 0.1s;
+      display: inline-block;
+    }
+
+    .btn-primary:hover { background: var(--green-dim); transform: translateY(-1px); }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--offwhite);
+      font-weight: 500;
+      font-size: 1rem;
+      padding: 16px 36px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      text-decoration: none;
+      transition: border-color 0.2s;
+      display: inline-block;
+    }
+
+    .btn-secondary:hover { border-color: #555; }
+
+    .hero-note {
+      margin-top: 20px;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    /* DIVIDER */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 0 40px;
+    }
+
+    /* SECTION */
+    section {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 80px 40px;
+    }
+
+    .section-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--green);
+      margin-bottom: 16px;
+    }
+
+    h2 {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      letter-spacing: -1px;
+      line-height: 1.15;
+      margin-bottom: 16px;
+    }
+
+    .section-intro {
+      color: #aaa;
+      font-size: 1.05rem;
+      max-width: 540px;
+      margin-bottom: 52px;
+    }
+
+    /* HOW IT WORKS */
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 2px;
+    }
+
+    .step {
+      background: var(--card);
+      padding: 32px 28px;
+      position: relative;
+    }
+
+    .step:first-child { border-radius: 4px 0 0 4px; }
+    .step:last-child { border-radius: 0 4px 4px 0; }
+
+    .step-num {
+      font-family: 'Syne', sans-serif;
+      font-size: 2.8rem;
+      font-weight: 800;
+      color: var(--border);
+      line-height: 1;
+      margin-bottom: 16px;
+    }
+
+    .step h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--offwhite);
+    }
+
+    .step p {
+      font-size: 0.88rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* WHAT YOU GET */
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 2px;
+    }
+
+    .feature {
+      background: var(--card);
+      padding: 28px;
+      border-left: 2px solid transparent;
+      transition: border-color 0.2s;
+    }
+
+    .feature:hover { border-left-color: var(--green); }
+
+    .feature-icon {
+      font-size: 1.4rem;
+      margin-bottom: 14px;
+    }
+
+    .feature h3 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .feature p {
+      font-size: 0.85rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* PRICING */
+    .pricing-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 48px;
+      max-width: 480px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .pricing-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: var(--green);
+    }
+
+    .price {
+      font-family: 'Syne', sans-serif;
+      font-size: 3.5rem;
+      font-weight: 800;
+      letter-spacing: -2px;
+      color: var(--offwhite);
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .price-period {
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin-bottom: 28px;
+    }
+
+    .price-tagline {
+      font-size: 0.95rem;
+      color: #ccc;
+      margin-bottom: 32px;
+      padding-bottom: 32px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .price-features {
+      list-style: none;
+      margin-bottom: 36px;
+    }
+
+    .price-features li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 0.9rem;
+      color: #ccc;
+      margin-bottom: 12px;
+    }
+
+    .price-features li::before {
+      content: '✓';
+      color: var(--green);
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    /* WHO IS IT FOR */
+    .audience-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 2px;
+    }
+
+    .audience-card {
+      background: var(--card);
+      padding: 28px;
+    }
+
+    .audience-card h3 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .audience-card p {
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    /* DISCLAIMER */
+    .disclaimer {
+      background: var(--mid);
+      border-left: 3px solid var(--border);
+      padding: 20px 24px;
+      border-radius: 0 4px 4px 0;
+      margin-top: 48px;
+    }
+
+    .disclaimer p {
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    /* FOOTER */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    .footer-logo {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 1rem;
+    }
+
+    .footer-logo span { color: var(--green); }
+
+    .footer-links {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+
+    .footer-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.85rem;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover { color: var(--offwhite); }
+
+    /* MOBILE */
+    @media (max-width: 600px) {
+      nav { padding: 16px 20px; }
+      .hero { padding: 60px 20px 60px; }
+      section { padding: 60px 20px; }
+      .divider { margin: 0 20px; }
+      .step:first-child, .step:last-child { border-radius: 0; }
+      footer { padding: 32px 20px; flex-direction: column; align-items: flex-start; }
+      .pricing-card { padding: 32px 24px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <div class="logo">Vuka<span>Coach</span> AI</div>
+    <a href="https://paystack.shop/pay/81p1d6bhle">Start Free →</a>
+  </nav>
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-eyebrow">Now available in South Africa</div>
+    <h1>Your personal coach.<br /><em>Inside WhatsApp.</em></h1>
+    <p class="hero-sub">
+      Coach Kaelo delivers personalised fitness, nutrition, and wellness coaching directly in WhatsApp — the app you already use every day. No downloads. No gym membership. Just real coaching that fits your life.
+    </p>
+    <div class="cta-group">
+      <a href="https://paystack.shop/pay/81p1d6bhle" class="btn-primary">Start coaching — R79/month</a>
+      <a href="#how-it-works" class="btn-secondary">See how it works</a>
+    </div>
+    <p class="hero-note">First 3 messages free — no credit card required to start</p>
+  </div>
+
+  <hr class="divider" />
+
+  <!-- HOW IT WORKS -->
+  <section id="how-it-works">
+    <div class="section-label">How it works</div>
+    <h2>Three messages to your<br />first workout plan</h2>
+    <p class="section-intro">No onboarding forms. No app setup. Just open WhatsApp and start talking to Kaelo.</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">01</div>
+        <h3>Message Coach Kaelo</h3>
+        <p>Send a WhatsApp message to your VukaCoach number. Kaelo introduces himself and asks what you need.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <h3>Tell him your goals</h3>
+        <p>Your schedule, your body, your challenges. Kaelo listens and builds a plan around your real life.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <h3>Get your plan</h3>
+        <p>Workout plans, nutrition guidance, recovery tips — delivered in conversational messages you can actually follow.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">04</div>
+        <h3>Kaelo remembers</h3>
+        <p>Every session builds on the last. Kaelo tracks your progress and adjusts your plan as you grow.</p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- WHAT YOU GET -->
+  <section id="features">
+    <div class="section-label">What you get</div>
+    <h2>A coach who knows you</h2>
+    <p class="section-intro">Not a generic programme. A personalised coaching relationship that develops over time.</p>
+    <div class="features">
+      <div class="feature">
+        <div class="feature-icon">🏋️</div>
+        <h3>Personalised workout plans</h3>
+        <p>Built around your goals, your schedule, and your body — not a template designed for someone else.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🥗</div>
+        <h3>Nutrition guidance</h3>
+        <p>Practical eating advice tailored to your lifestyle and what's actually available to you.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🧠</div>
+        <h3>Persistent memory</h3>
+        <p>Kaelo remembers your injuries, your progress, and your goals from session to session.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">⏰</div>
+        <h3>Available 24/7</h3>
+        <p>Message when it suits you — early morning, late night, between shifts. Kaelo is always there.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">💬</div>
+        <h3>Works in WhatsApp</h3>
+        <p>No new apps to download. No passwords to remember. Just the app already on your phone.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🛡️</div>
+        <h3>Injury-aware coaching</h3>
+        <p>Tell Kaelo about your back, your knees, your shoulder — he works around it, not through it.</p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- PRICING -->
+  <section id="pricing">
+    <div class="section-label">Pricing</div>
+    <h2>Simple. One price.<br />Cancel anytime.</h2>
+    <p class="section-intro">Less than a takeaway burger. More consistent than a gym you never go to.</p>
+    <div class="pricing-card">
+      <div class="price">R79</div>
+      <div class="price-period">per month — cancel anytime</div>
+      <div class="price-tagline">Full personalised coaching with persistent memory. Kaelo remembers everything and builds with you long term.</div>
+      <ul class="price-features">
+        <li>Personalised workout and nutrition plans</li>
+        <li>Persistent memory — Kaelo knows your history</li>
+        <li>Injury-aware and recovery coaching</li>
+        <li>Available 24/7 via WhatsApp</li>
+        <li>No app download required</li>
+        <li>First 3 messages free to try</li>
+      </ul>
+      <a href="https://paystack.shop/pay/81p1d6bhle" class="btn-primary" style="width:100%; text-align:center; display:block;">Start coaching now →</a>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- WHO IS IT FOR -->
+  <section id="who">
+    <div class="section-label">Who it's for</div>
+    <h2>Built for everyday<br />South Africans</h2>
+    <p class="section-intro">VukaCoach is for people with real lives, real jobs, and real goals — not elite athletes with unlimited time.</p>
+    <div class="audience-grid">
+      <div class="audience-card">
+        <h3>Restaurant & hospitality workers</h3>
+        <p>On your feet all day, irregular hours. Kaelo builds around your shift schedule.</p>
+      </div>
+      <div class="audience-card">
+        <h3>Parents with limited time</h3>
+        <p>Short, effective sessions that fit between school runs and work.</p>
+      </div>
+      <div class="audience-card">
+        <h3>People recovering from injury</h3>
+        <p>Kaelo works around your body's limits and builds back gradually.</p>
+      </div>
+      <div class="audience-card">
+        <h3>Anyone who wants to start</h3>
+        <p>No experience needed. Kaelo meets you exactly where you are.</p>
+      </div>
+    </div>
+    <div class="disclaimer">
+      <p><strong style="color: var(--offwhite);">Important:</strong> VukaCoach AI provides general fitness and wellness guidance for informational purposes only. It is not a medical service and does not constitute medical advice, diagnosis, or treatment. If you have an existing injury, chronic condition, or health concern, consult a qualified doctor or physiotherapist before starting any exercise programme.</p>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="footer-logo">Vuka<span>Coach</span> AI</div>
+    <div class="footer-links">
+      <a href="https://bit.ly/4wh0KU4">Terms & Privacy</a>
+      <a href="mailto:vukacoach@outlook.com">Contact</a>
+      <a href="https://paystack.shop/pay/81p1d6bhle">Subscribe</a>
+    </div>
+  </footer>
+
+</body>
+</html>
