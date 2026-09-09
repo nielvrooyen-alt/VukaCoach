@@ -1,0 +1,99 @@
+{
+  "name": "VukaCoach - AI Coach Brain",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vukacoach",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "VukaCoach Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-400, 0],
+      "webhookId": "vukacoach-brain",
+      "notes": "Point the app's Settings > n8n webhook URL at this: https://YOUR-N8N-HOST/webhook/vukacoach"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// ---- Build the Gemini request from the VukaCoach app payload ----\nconst b = $input.item.json.body || $input.item.json;\n\nconst p = b.user_profile || {};\nconst mem = b.memory || [];\nconst hist = b.conversation_history || [];\nconst stats = b.stats || {};\nconst tg = b.targets || {};\n\nconst LANGS = { en: 'English (South African)', af: 'Afrikaans', zu: 'isiZulu', xh: 'isiXhosa', st: 'Sesotho' };\nconst lang = LANGS[p.lang] || 'English (South African)';\n\nconst GOALS = {\n  lose_weight: 'lose weight sustainably',\n  build_muscle: 'build muscle',\n  get_fit: 'improve general fitness and energy',\n  stay_healthy: 'stay consistent and accountable',\n};\n\nconst system = `You are VukaCoach, a warm, straight-talking personal wellness coach for South Africans. \"Vuka\" means \"wake up / rise up\" — you are the coach that remembers and never lets them drift.\n\nYOUR PERSON:\n- Audience: working South Africans who failed with free tracking apps because logging felt like homework. They don't need more data; they need accountability.\n- Voice: encouraging but never sappy. Direct, human, a bit of local flavour. Call the user by name when you know it. No calorie-shaming, no guilt. Celebrate streaks.\n- Language: reply in ${lang}. Keep replies SHORT — 2 to 5 sentences unless they ask for a full plan. Chat message style, not an essay.\n- Cultural fluency: you know SA foods (pap, braai, wors, kota, bunny chow, Nando's, Woolies), load shedding, local gyms, and that data is expensive. Never lecture about American foods or gym cultures that don't apply.\n- Safety: you are not a doctor. If the user mentions injury, chest pain, pregnancy, or medical conditions, be supportive and tell them to see a doctor or physio. Never give medical diagnoses or extreme diets (below 1200 kcal etc.).\n\nWHAT YOU KNOW ABOUT THIS USER:\n- Goal: ${GOALS[p.goal] || p.goal || 'not set yet'}\n- Profile: ${p.gender || '?'}, age ${p.age || '?'}, ${p.weight || '?'} kg, ${p.height || '?'} cm${p.target ? `, target weight ${p.target} kg` : ''}, activity level ${p.activity || '?'}, about ${p.time || '?'} min/day available.\n- Diet: ${p.diet && p.diet !== 'none' ? p.diet : 'no restrictions'}\n- Injuries/limitations: ${p.injuries || 'none mentioned'}\n- Daily targets: ${tg.cal ? tg.cal + ' kcal, ' + tg.protein + ' g protein' : 'not calculated'}\n- Stats: streak ${stats.streak || 0} day(s), ${stats.workouts || 0} workouts logged, ${stats.checkins || 0} check-ins.\n- It is ${b.time_of_day || '?'} on a ${b.day_of_week || '?'}.\n\nLONG-TERM MEMORY (things you already know from past conversations):\n${mem.length ? mem.map((m) => '- ' + m).join('\\n') : '- (nothing yet — build memory as you learn things)'}\n\nMEMORY RULES:\n- Actively USE the memory above. Referencing past struggles, wins and preferences is your superpower — that's what separates you from ChatGPT.\n- If the user tells you something durable (a preference, a struggle, an event, a milestone), add it to memory_updates as a short string like \"User struggles with evening snacking\".\n- Don't repeat memory entries they already have.\n\nEND EVERY REPLY by choosing 1-3 suggested_actions: short button labels (max 4 words each) the user can tap, e.g. \"Suggest a workout\", \"Meal ideas for tonight\", \"I need to rest\".\n\nIf message === 'ping' (a webhook test), reply with message \"VukaCoach brain is alive. 🙌\" and empty arrays.`;\n\n// Compress history: keep role labels the LLM understands\nconst lines = hist.map((h) => (h.role === 'user' ? 'User: ' : 'Coach: ') + h.text).join('\\n');\nconst user = `${lines ? 'RECENT CONVERSATION:\\n' + lines + '\\n\\n' : ''}USER'S NEW MESSAGE: ${b.message || ''}`;\n\n// Assemble the Gemini request body\nconst geminiBody = {\n  contents: [{ role: 'user', parts: [{ text: user }] }],\n  systemInstruction: { parts: [{ text: system }] },\n  generationConfig: {\n    temperature: 0.8,\n    maxOutputTokens: 600,\n    responseMimeType: 'application/json',\n    responseSchema: {\n      type: 'OBJECT',\n      properties: {\n        message: { type: 'STRING' },\n        suggested_actions: { type: 'ARRAY', items: { type: 'STRING' } },\n        memory_updates: { type: 'ARRAY', items: { type: 'STRING' } },\n      },\n      required: ['message'],\n    },\n  },\n};\n\nreturn { json: { geminiBody, session_token: b.session_token } };"
+      },
+      "id": "a1b2c3d4-0002-4000-8000-000000000002",
+      "name": "Build Coach Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-180, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-goog-api-key",
+              "value": "PASTE_YOUR_GEMINI_API_KEY_HERE"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.geminiBody) }}",
+        "options": {
+          "timeout": 25000
+        }
+      },
+      "id": "a1b2c3d4-0003-4000-8000-000000000003",
+      "name": "Gemini (the coach brain)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [40, 0],
+      "notes": "Replace PASTE_YOUR_GEMINI_API_KEY_HERE with a key from https://aistudio.google.com/apikey (free tier is enough to start)"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// ---- Parse Gemini's reply into the shape the app expects ----\nconst j = $input.item.json;\nlet out = { message: 'Sorry, my brain glitched — try that again?', suggested_actions: [], memory_updates: [] };\n\ntry {\n  const text = j.candidates?.[0]?.content?.parts?.[0]?.text;\n  if (text) {\n    const parsed = JSON.parse(text);\n    out.message = parsed.message || out.message;\n    out.suggested_actions = Array.isArray(parsed.suggested_actions) ? parsed.suggested_actions.slice(0, 3) : [];\n    out.memory_updates = Array.isArray(parsed.memory_updates) ? parsed.memory_updates : [];\n  } else {\n    const reason = j.candidates?.[0]?.finishReason || j.error?.message || 'unknown';\n    out.message = 'My brain could not answer this one (' + reason + '). Try rephrasing?';\n  }\n} catch (e) {\n  out.message = 'My brain returned something I could not read. Try again?';\n}\n\nreturn { json: out };"
+      },
+      "id": "a1b2c3d4-0004-4000-8000-000000000004",
+      "name": "Shape App Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [260, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0005-4000-8000-000000000005",
+      "name": "Respond to App",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [480, 0]
+    }
+  ],
+  "connections": {
+    "VukaCoach Webhook": {
+      "main": [[{ "node": "Build Coach Prompt", "type": "main", "index": 0 }]]
+    },
+    "Build Coach Prompt": {
+      "main": [[{ "node": "Gemini (the coach brain)", "type": "main", "index": 0 }]]
+    },
+    "Gemini (the coach brain)": {
+      "main": [[{ "node": "Shape App Reply", "type": "main", "index": 0 }]]
+    },
+    "Shape App Reply": {
+      "main": [[{ "node": "Respond to App", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

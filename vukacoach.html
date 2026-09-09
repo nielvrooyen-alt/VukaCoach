@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#121418">
+<meta name="description" content="VukaCoach — your AI accountability coach that remembers you.">
+<title>VukaCoach</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+  :root {
+    --bg: #121418;
+    --bg-elev: #1a1d23;
+    --bg-elev2: #22262e;
+    --card: rgba(34, 38, 46, 0.72);
+    --card-solid: #22262e;
+    --border: rgba(255, 255, 255, 0.08);
+    --text: #e8eaed;
+    --text-dim: #9aa0a8;
+    --teal: #2dd4bf;
+    --teal-dim: rgba(45, 212, 191, 0.14);
+    --amber: #fbbf24;
+    --red: #f87171;
+    --radius: 18px;
+    --chat-bg: #0d0f12;
+    --coach-bubble: #22262e;
+    --user-bubble: #1f5c54;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; overscroll-behavior: none; }
+  body {
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg); color: var(--text);
+    display: flex; justify-content: center;
+  }
+  #app {
+    width: 100%; max-width: 480px; height: 100dvh;
+    display: flex; flex-direction: column; position: relative;
+    background: var(--bg); overflow: hidden;
+  }
+  .glass {
+    background: var(--card); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--border); border-radius: var(--radius);
+  }
+
+  /* ---------- Onboarding ---------- */
+  #onboarding {
+    position: absolute; inset: 0; z-index: 50; background: var(--bg);
+    display: flex; flex-direction: column; padding: 24px;
+  }
+  .ob-progress { display: flex; gap: 6px; margin-bottom: 32px; }
+  .ob-progress span { flex: 1; height: 4px; border-radius: 2px; background: var(--bg-elev2); transition: background .3s; }
+  .ob-progress span.done { background: var(--teal); }
+  .ob-body { flex: 1; display: flex; flex-direction: column; overflow-y: auto; }
+  .ob-slide { display: none; flex-direction: column; gap: 14px; animation: fadein .3s; }
+  .ob-slide.active { display: flex; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(10px);} to { opacity: 1; transform: none;} }
+  .ob-title { font-size: 26px; font-weight: 700; line-height: 1.25; }
+  .ob-sub { color: var(--text-dim); font-size: 15px; line-height: 1.5; margin-bottom: 8px; }
+  .choice-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .choice {
+    padding: 16px 14px; border-radius: 14px; background: var(--bg-elev);
+    border: 1.5px solid var(--border); cursor: pointer; text-align: left;
+    color: var(--text); font-size: 15px; transition: border-color .15s, background .15s;
+  }
+  .choice small { display: block; color: var(--text-dim); margin-top: 4px; font-size: 12.5px; }
+  .choice.selected { border-color: var(--teal); background: var(--teal-dim); }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 13px; color: var(--text-dim); font-weight: 500; }
+  .field input, .field select, .field textarea {
+    background: var(--bg-elev); border: 1.5px solid var(--border); border-radius: 12px;
+    padding: 13px 14px; color: var(--text); font-size: 16px; font-family: inherit; outline: none;
+  }
+  .field input:focus, .field textarea:focus { border-color: var(--teal); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .btn {
+    padding: 15px; border-radius: 14px; border: none; font-size: 16px; font-weight: 600;
+    background: var(--teal); color: #06281f; cursor: pointer; font-family: inherit;
+  }
+  .btn:disabled { opacity: .4; }
+  .btn-ghost { background: transparent; color: var(--text-dim); border: 1.5px solid var(--border); }
+  .ob-nav { display: flex; gap: 10px; padding-top: 16px; }
+  .ob-nav .btn { flex: 1; }
+  .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+  .brand .logo {
+    width: 40px; height: 40px; border-radius: 12px; background: var(--teal-dim);
+    display: grid; place-items: center; color: var(--teal); font-weight: 800; font-size: 20px;
+  }
+  .brand b { font-size: 18px; }
+  .brand small { display: block; color: var(--text-dim); font-size: 12px; font-weight: 400; }
+
+  /* ---------- Header ---------- */
+  #main { display: none; flex-direction: column; height: 100%; }
+  #main.active { display: flex; }
+  header {
+    padding: 14px 18px; display: flex; align-items: center; gap: 12px;
+    border-bottom: 1px solid var(--border); background: var(--bg-elev);
+    padding-top: max(14px, env(safe-area-inset-top));
+  }
+  .avatar {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: linear-gradient(135deg, #2dd4bf, #0d9488);
+    display: grid; place-items: center; font-weight: 800; color: #06281f; font-size: 17px;
+  }
+  .hd-info { flex: 1; }
+  .hd-info b { font-size: 16px; }
+  .hd-status { font-size: 12.5px; color: var(--teal); display: flex; align-items: center; gap: 5px; }
+  .hd-status::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--teal); }
+  .hd-status.offline { color: var(--amber); }
+  .hd-status.offline::before { background: var(--amber); }
+  .icon-btn {
+    background: none; border: none; color: var(--text-dim); font-size: 20px;
+    padding: 8px; cursor: pointer;
+  }
+
+  /* ---------- Views ---------- */
+  .view { flex: 1; display: none; flex-direction: column; min-height: 0; }
+  .view.active { display: flex; }
+
+  /* Chat */
+  #chatScroll { flex: 1; overflow-y: auto; padding: 18px 14px 8px; background: var(--chat-bg); }
+  .msg { max-width: 84%; margin-bottom: 10px; padding: 11px 14px; border-radius: 16px;
+    font-size: 15px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
+  .msg.coach { background: var(--coach-bubble); border-bottom-left-radius: 5px; align-self: flex-start; }
+  .msg.user { background: var(--user-bubble); border-bottom-right-radius: 5px; margin-left: auto; }
+  .msg .meta { font-size: 10.5px; color: var(--text-dim); margin-top: 5px; }
+  .msg.pending { opacity: .55; font-style: italic; }
+  .day-sep { text-align: center; color: var(--text-dim); font-size: 11.5px; margin: 12px 0; }
+  #chatScroll { display: flex; flex-direction: column; }
+  .quick-actions {
+    display: flex; gap: 8px; padding: 8px 14px; overflow-x: auto; background: var(--chat-bg);
+    scrollbar-width: none;
+  }
+  .quick-actions::-webkit-scrollbar { display: none; }
+  .qa-chip {
+    flex-shrink: 0; padding: 8px 14px; border-radius: 999px; font-size: 13px;
+    background: var(--bg-elev2); border: 1px solid var(--border); color: var(--text);
+    cursor: pointer; white-space: nowrap;
+  }
+  .qa-chip:active { background: var(--teal-dim); }
+  #composer {
+    display: flex; align-items: flex-end; gap: 8px; padding: 10px 12px;
+    background: var(--bg-elev); border-top: 1px solid var(--border);
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+  }
+  #msgInput {
+    flex: 1; background: var(--bg-elev2); border: 1px solid var(--border); border-radius: 22px;
+    padding: 12px 16px; color: var(--text); font-size: 15px; font-family: inherit;
+    outline: none; resize: none; max-height: 110px; line-height: 1.4;
+  }
+  .send-btn, .mic-btn {
+    width: 44px; height: 44px; border-radius: 50%; border: none; cursor: pointer;
+    display: grid; place-items: center; font-size: 19px; flex-shrink: 0;
+  }
+  .send-btn { background: var(--teal); color: #06281f; }
+  .send-btn:disabled { opacity: .4; }
+  .mic-btn { background: var(--bg-elev2); color: var(--text); border: 1px solid var(--border); }
+  .mic-btn.recording { background: var(--red); color: #fff; animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity: .6; } }
+
+  /* Today */
+  #todayScroll { flex: 1; overflow-y: auto; padding: 16px 14px; display: flex; flex-direction: column; gap: 12px; }
+  .card { padding: 16px; }
+  .card h3 { font-size: 15px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .plan-item { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); align-items: flex-start; }
+  .plan-item:last-child { border-bottom: none; }
+  .plan-emoji { font-size: 20px; }
+  .plan-item b { font-size: 14px; display: block; }
+  .plan-item p { font-size: 13px; color: var(--text-dim); line-height: 1.4; margin-top: 2px; }
+  .mood-row { display: flex; gap: 8px; }
+  .mood {
+    flex: 1; aspect-ratio: 1; border-radius: 14px; background: var(--bg-elev);
+    border: 1.5px solid var(--border); font-size: 26px; display: grid; place-items: center;
+    cursor: pointer; transition: border-color .15s;
+  }
+  .mood.selected { border-color: var(--teal); background: var(--teal-dim); }
+  .water-row { display: flex; align-items: center; gap: 12px; }
+  .water-track { flex: 1; display: flex; gap: 5px; }
+  .water-cup { flex: 1; height: 30px; border-radius: 6px; background: var(--bg-elev2); border: 1px solid var(--border); cursor: pointer; }
+  .water-cup.full { background: rgba(45, 212, 191, .45); border-color: var(--teal); }
+
+  /* Progress */
+  #progressScroll { flex: 1; overflow-y: auto; padding: 16px 14px; display: flex; flex-direction: column; gap: 12px; }
+  .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .stat { padding: 12px 8px; text-align: center; }
+  .stat b { font-size: 22px; color: var(--teal); display: block; }
+  .stat span { font-size: 11px; color: var(--text-dim); }
+  .ring-wrap { display: flex; align-items: center; gap: 18px; }
+  .ring { position: relative; width: 92px; height: 92px; flex-shrink: 0; }
+  .ring svg { transform: rotate(-90deg); }
+  .ring .pct { position: absolute; inset: 0; display: grid; place-items: center; font-weight: 700; font-size: 17px; }
+  .week-dots { flex: 1; display: flex; justify-content: space-between; }
+  .wd { text-align: center; font-size: 10px; color: var(--text-dim); }
+  .wd i { display: block; width: 26px; height: 26px; border-radius: 50%; background: var(--bg-elev2);
+    margin: 0 auto 4px; font-style: normal; display: grid; place-items: center; font-size: 12px; }
+  .wd.hit i { background: var(--teal); color: #06281f; }
+  .photo-row { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+  .photo-row img { width: 90px; height: 120px; object-fit: cover; border-radius: 12px; border: 1px solid var(--border); }
+  .photo-add { width: 90px; height: 120px; border-radius: 12px; border: 1.5px dashed var(--border);
+    display: grid; place-items: center; color: var(--text-dim); font-size: 24px; cursor: pointer; flex-shrink: 0; }
+  .weight-line { display: flex; align-items: center; gap: 10px; }
+  .weight-line input { width: 90px; background: var(--bg-elev); border: 1.5px solid var(--border);
+    border-radius: 10px; padding: 10px; color: var(--text); font-size: 15px; outline: none; }
+  .trend-note { font-size: 13px; color: var(--text-dim); }
+
+  /* Nav */
+  nav {
+    display: flex; background: var(--bg-elev); border-top: 1px solid var(--border);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  nav button {
+    flex: 1; background: none; border: none; color: var(--text-dim); padding: 10px 0 8px;
+    font-size: 11px; font-family: inherit; cursor: pointer; display: flex; flex-direction: column; gap: 3px; align-items: center;
+  }
+  nav button .ni { font-size: 20px; }
+  nav button.active { color: var(--teal); }
+
+  /* Settings sheet */
+  #settings {
+    position: absolute; inset: 0; z-index: 60; background: rgba(0,0,0,.55);
+    display: none; align-items: flex-end;
+  }
+  #settings.open { display: flex; }
+  .sheet { width: 100%; max-width: 480px; background: var(--bg-elev); border-radius: 22px 22px 0 0;
+    padding: 20px 18px; max-height: 85%; overflow-y: auto; display: flex; flex-direction: column; gap: 14px;
+    padding-bottom: max(20px, env(safe-area-inset-bottom)); }
+  .sheet h2 { font-size: 18px; }
+  .sheet .field input, .sheet .field textarea { font-size: 14px; }
+  .sheet .btn { width: 100%; }
+  .danger-link { color: var(--red); background: none; border: none; font-size: 14px; cursor: pointer;
+    text-align: center; font-family: inherit; padding: 8px; }
+  .hint { font-size: 12px; color: var(--text-dim); line-height: 1.5; }
+
+  /* Install banner */
+  #installBanner { display: none; padding: 10px 14px; font-size: 13px; align-items: center; gap: 10px;
+    background: var(--teal-dim); border-top: 1px solid var(--border); }
+  #installBanner button { margin-left: auto; background: var(--teal); border: none; border-radius: 8px;
+    padding: 7px 12px; font-weight: 600; color: #06281f; cursor: pointer; font-family: inherit; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Onboarding -->
+  <div id="onboarding">
+    <div class="brand">
+      <div class="logo">V</div>
+      <div><b>VukaCoach</b><small>Coach that remembers. Ukhalelani — we rise together.</small></div>
+    </div>
+    <div class="ob-progress" id="obProgress"><span></span><span></span><span></span><span></span><span></span></div>
+    <div class="ob-body">
+
+      <div class="ob-slide active" data-slide="0">
+        <div class="ob-title">What are we working toward?</div>
+        <div class="ob-sub">Be honest — your coach builds everything around this.</div>
+        <div class="choice-grid" id="goalChoices">
+          <button class="choice" data-v="lose_weight">Lose weight<small>Sustainable, no crash diets</small></button>
+          <button class="choice" data-v="build_muscle">Build muscle<small>Strength and size</small></button>
+          <button class="choice" data-v="get_fit">Get fitter<small>Energy, stamina, general health</small></button>
+          <button class="choice" data-v="stay_healthy">Stay accountable<small>Consistency and habits</small></button>
+        </div>
+      </div>
+
+      <div class="ob-slide" data-slide="1">
+        <div class="ob-title">A bit about you</div>
+        <div class="ob-sub">Used to calculate your calorie and protein targets — nothing leaves your device without your say-so.</div>
+        <div class="row2">
+          <div class="field"><label>Gender</label>
+            <select id="obGender"><option value="male">Male</option><option value="female">Female</option></select>
+          </div>
+          <div class="field"><label>Age</label><input id="obAge" type="number" inputmode="numeric" placeholder="28"></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>Weight (kg)</label><input id="obWeight" type="number" inputmode="decimal" placeholder="85"></div>
+          <div class="field"><label>Height (cm)</label><input id="obHeight" type="number" inputmode="numeric" placeholder="175"></div>
+        </div>
+        <div class="field"><label>Target weight (kg) — optional</label><input id="obTarget" type="number" inputmode="decimal" placeholder="80"></div>
+      </div>
+
+      <div class="ob-slide" data-slide="2">
+        <div class="ob-title">Your week looks like…</div>
+        <div class="ob-sub">So plans fit your real life, not an ideal one.</div>
+        <div class="choice-grid" id="activityChoices">
+          <button class="choice" data-v="sedentary">Mostly sitting<small>Desk job, little movement</small></button>
+          <button class="choice" data-v="light">Lightly active<small>Walks, chores, some sport</small></button>
+          <button class="choice" data-v="moderate">Moderate<small>Exercise 2–3× a week</small></button>
+          <button class="choice" data-v="active">Very active<small>Training most days</small></button>
+        </div>
+        <div class="field"><label>Time you can give per day</label>
+          <select id="obTime"><option value="15">15 minutes</option><option value="30" selected>30 minutes</option><option value="45">45 minutes</option><option value="60">60+ minutes</option></select>
+        </div>
+      </div>
+
+      <div class="ob-slide" data-slide="3">
+        <div class="ob-title">Anything your coach must know?</div>
+        <div class="ob-sub">Injuries, conditions, old ghosts — the coach carries this into every plan. Example: "Bad right knee, can't run."</div>
+        <div class="field"><label>Injuries / limitations</label><textarea id="obInjuries" rows="3" placeholder="Bad knee, sore lower back…"></textarea></div>
+      </div>
+
+      <div class="ob-slide" data-slide="4">
+        <div class="ob-title">Food & language</div>
+        <div class="ob-sub">Local is lekker. The coach speaks your language and knows SA food.</div>
+        <div class="field"><label>Diet preference</label>
+          <select id="obDiet">
+            <option value="none">No restrictions</option>
+            <option value="halal">Halal</option>
+            <option value="kosher">Kosher</option>
+            <option value="vegetarian">Vegetarian</option>
+            <option value="vegan">Vegan</option>
+            <option value="banting">Banting / low-carb</option>
+          </select>
+        </div>
+        <div class="field"><label>Coach language</label>
+          <select id="obLang">
+            <option value="en">English</option>
+            <option value="af">Afrikaans</option>
+            <option value="zu">isiZulu</option>
+            <option value="xh">isiXhosa</option>
+            <option value="st">Sesotho</option>
+          </select>
+        </div>
+      </div>
+
+    </div>
+    <div class="ob-nav">
+      <button class="btn btn-ghost" id="obBack" style="flex:0 0 30%">Back</button>
+      <button class="btn" id="obNext">Continue</button>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div id="main">
+    <header>
+      <div class="avatar">V</div>
+      <div class="hd-info"><b id="hdName">Coach</b><div class="hd-status" id="hdStatus">online</div></div>
+      <button class="icon-btn" id="btnSettings" title="Settings">⚙</button>
+    </header>
+
+    <!-- Chat view -->
+    <div class="view active" id="view-chat">
+      <div id="chatScroll"></div>
+      <div class="quick-actions" id="quickActions">
+        <button class="qa-chip" data-q="Suggest a workout for today">🏋 Suggest a workout</button>
+        <button class="qa-chip" data-q="What should I eat today?">🍽 What should I eat?</button>
+        <button class="qa-chip" data-q="Motivate me, coach">🔥 Motivate me</button>
+        <button class="qa-chip" data-q="How am I doing this week?">📊 My week so far</button>
+        <button class="qa-chip" data-q="I want to log a meal: ">📝 Log a meal</button>
+      </div>
+      <div id="composer">
+        <button class="mic-btn" id="micBtn" title="Voice input">🎙</button>
+        <textarea id="msgInput" rows="1" placeholder="Message your coach…"></textarea>
+        <button class="send-btn" id="sendBtn" disabled>➤</button>
+      </div>
+    </div>
+
+    <!-- Today view -->
+    <div class="view" id="view-today">
+      <div id="todayScroll">
+        <div class="card glass" id="checkinCard">
+          <h3>🌅 Daily check-in</h3>
+          <p class="hint" id="checkinPrompt">How are you feeling this morning?</p>
+          <div class="mood-row" id="moodRow" style="margin-top:12px">
+            <button class="mood" data-m="exhausted">😩</button>
+            <button class="mood" data-m="tired">😔</button>
+            <button class="mood" data-m="okay">🙂</button>
+            <button class="mood" data-m="good">😄</button>
+            <button class="mood" data-m="great">🚀</button>
+          </div>
+        </div>
+        <div class="card glass">
+          <h3>📋 Today's plan <small id="planDate" style="margin-left:auto;font-weight:400;color:var(--text-dim);font-size:12px"></small></h3>
+          <div id="planItems"></div>
+        </div>
+        <div class="card glass">
+          <h3>💧 Hydration</h3>
+          <div class="water-row">
+            <div class="water-track" id="waterTrack"></div>
+            <span class="hint" id="waterLabel">0/8</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Progress view -->
+    <div class="view" id="view-progress">
+      <div id="progressScroll">
+        <div class="card glass">
+          <h3>🔥 Streak & activity</h3>
+          <div class="ring-wrap">
+            <div class="ring">
+              <svg width="92" height="92" viewBox="0 0 92 92">
+                <circle cx="46" cy="46" r="40" stroke="var(--bg-elev2)" stroke-width="8" fill="none"/>
+                <circle id="ringFg" cx="46" cy="46" r="40" stroke="var(--teal)" stroke-width="8" fill="none"
+                  stroke-linecap="round" stroke-dasharray="251.3" stroke-dashoffset="251.3"/>
+              </svg>
+              <div class="pct" id="ringPct">0%</div>
+            </div>
+            <div class="week-dots" id="weekDots"></div>
+          </div>
+        </div>
+        <div class="stat-grid">
+          <div class="stat glass"><b id="stStreak">0</b><span>day streak</span></div>
+          <div class="stat glass"><b id="stWorkouts">0</b><span>workouts</span></div>
+          <div class="stat glass"><b id="stCheckins">0</b><span>check-ins</span></div>
+          <div class="stat glass"><b id="stMessages">0</b><span>coach msgs</span></div>
+          <div class="stat glass"><b id="stWater">0</b><span>glasses today</span></div>
+          <div class="stat glass"><b id="stPhotos">0</b><span>progress pics</span></div>
+        </div>
+        <div class="card glass">
+          <h3>⚖ Weight</h3>
+          <div class="weight-line">
+            <input id="weightInput" type="number" inputmode="decimal" step="0.1" placeholder="kg">
+            <button class="btn" id="weightSave" style="padding:10px 16px">Log</button>
+          </div>
+          <p class="trend-note" id="weightTrend" style="margin-top:10px"></p>
+        </div>
+        <div class="card glass">
+          <h3>📸 Progress photos</h3>
+          <div class="photo-row" id="photoRow"><div class="photo-add" id="photoAdd">+</div></div>
+        </div>
+      </div>
+    </div>
+
+    <nav>
+      <button class="active" data-view="chat"><span class="ni">💬</span>Coach</button>
+      <button data-view="today"><span class="ni">📌</span>Today</button>
+      <button data-view="progress"><span class="ni">📈</span>Progress</button>
+    </nav>
+
+    <div id="installBanner">
+      <span>📲 Install VukaCoach on your home screen</span>
+      <button id="installBtn">Install</button>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div id="settings">
+    <div class="sheet">
+      <h2>⚙ Settings</h2>
+      <div class="field"><label>Your name (what the coach calls you)</label><input id="setName" placeholder="e.g. Niel"></div>
+      <div class="field"><label>n8n webhook URL</label><input id="setWebhook" placeholder="https://your-n8n.app/webhook/vukacoach"></div>
+      <p class="hint">Every message is POSTed here with the full VukaCoach payload (profile, memory, history, stats). Leave empty to use built-in offline coach replies. Test the endpoint with the button below.</p>
+      <button class="btn btn-ghost" id="testWebhook">Test webhook</button>
+      <div class="field"><label>Export your data</label>
+        <button class="btn btn-ghost" id="exportBtn">⬇ Download all my data (JSON)</button>
+      </div>
+      <button class="danger-link" id="resetBtn">Delete everything & restart onboarding</button>
+      <button class="btn" id="closeSettings">Done</button>
+    </div>
+  </div>
+
+</div>
+<script>
+'use strict';
+/* ============================================================
+   VukaCoach PWA — single-file AI wellness coach
+   State model:
+     vc_state = {
+       profile: {...onboarding answers + name + lang + diet},
+       memory: [strings],           // rolling AI memory
+       chats: [{role, text, ts}],
+       stats: {streak, workouts, checkins, messages, lastActive},
+       days: {'2026-09-09': {checkin, water, planHit}},
+       weights: [{d, kg}],
+       photos: [dataURL],
+       webhook: url
+     }
+   ============================================================ */
+
+const LS_KEY = 'vukacoach_v2';
+const todayKey = (d = new Date()) => d.toISOString().slice(0, 10);
+
+const DEFAULT_STATE = {
+  profile: null,
+  memory: [],
+  chats: [],
+  stats: { streak: 0, workouts: 0, checkins: 0, messages: 0, lastActive: null },
+  days: {},
+  weights: [],
+  photos: [],
+  webhook: '',
+};
+
+let S = load();
+let deferredInstall = null;
+
+function load() {
+  try { return { ...structuredClone(DEFAULT_STATE), ...JSON.parse(localStorage.getItem(LS_KEY) || '{}') }; }
+  catch { return structuredClone(DEFAULT_STATE); }
+}
+function save() { localStorage.setItem(LS_KEY, JSON.stringify(S)); }
+
+const $ = (id) => document.getElementById(id);
+const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+const esc = (s) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* ---------- Calorie / protein engine (Mifflin-St Jeor) ---------- */
+function targets() {
+  const p = S.profile; if (!p) return null;
+  const w = +p.weight, h = +p.height, a = +p.age;
+  if (!w || !h || !a) return null;
+  const bmr = p.gender === 'female' ? 10 * w + 6.25 * h - 5 * a - 161 : 10 * w + 6.25 * h - 5 * a + 5;
+  const mult = { sedentary: 1.25, light: 1.375, moderate: 1.55, active: 1.725 }[p.activity] || 1.4;
+  let cal = bmr * mult;
+  const diff = (+p.target || w) - w;
+  if (p.goal === 'lose_weight') cal += Math.max(-500, Math.min(-250, diff * 100 * 0.5));
+  if (p.goal === 'build_muscle') cal += 300;
+  cal = Math.round(cal / 10) * 10;
+  const protein = Math.round(w * (p.goal === 'build_muscle' ? 1.8 : 1.6));
+  return { bmr: Math.round(bmr), cal, protein };
+}
+
+/* ---------- Onboarding ---------- */
+let obStep = 0;
+const obState = { goal: null, activity: null };
+
+function renderOnboarding() {
+  document.querySelectorAll('.ob-slide').forEach(s => s.classList.toggle('active', +s.dataset.slide === obStep));
+  [...$('obProgress').children].forEach((b, i) => b.classList.toggle('done', i <= obStep));
+  $('obBack').style.visibility = obStep === 0 ? 'hidden' : 'visible';
+  $('obNext').textContent = obStep === 4 ? 'Start coaching →' : 'Continue';
+  $('obNext').disabled = (obStep === 0 && !obState.goal) || (obStep === 2 && !obState.activity);
+}
+
+document.querySelectorAll('#goalChoices .choice').forEach(b => b.onclick = () => {
+  obState.goal = b.dataset.v;
+  document.querySelectorAll('#goalChoices .choice').forEach(c => c.classList.toggle('selected', c === b));
+  renderOnboarding();
+});
+document.querySelectorAll('#activityChoices .choice').forEach(b => b.onclick = () => {
+  obState.activity = b.dataset.v;
+  document.querySelectorAll('#activityChoices .choice').forEach(c => c.classList.toggle('selected', c === b));
+  renderOnboarding();
+});
+
+$('obBack').onclick = () => { obStep = Math.max(0, obStep - 1); renderOnboarding(); };
+$('obNext').onclick = () => {
+  if (obStep < 4) { obStep++; renderOnboarding(); return; }
+  S.profile = {
+    goal: obState.goal,
+    gender: $('obGender').value,
+    age: $('obAge').value,
+    weight: $('obWeight').value,
+    height: $('obHeight').value,
+    target: $('obTarget').value,
+    activity: obState.activity,
+    time: $('obTime').value,
+    injuries: $('obInjuries').value.trim(),
+    diet: $('obDiet').value,
+    lang: $('obLang').value,
+    name: '',
+  };
+  S.memory = buildSeedMemory();
+  save();
+  finishOnboarding();
+};
+
+function buildSeedMemory() {
+  const p = S.profile, m = [];
+  const goals = { lose_weight: 'Goal: Lose weight', build_muscle: 'Goal: Build muscle', get_fit: 'Goal: Get fitter', stay_healthy: 'Goal: Stay accountable/consistent' };
+  m.push(goals[p.goal]);
+  if (p.weight && p.target) m.push(`Weight ${p.weight}kg, target ${p.target}kg`);
+  if (p.injuries) m.push(`Injury/limitation: ${p.injuries}`);
+  if (p.diet !== 'none') m.push(`Diet: ${p.diet}`);
+  m.push(`Activity level: ${p.activity}, ${p.time} min/day available`);
+  m.push(`Language preference: ${p.lang}`);
+  return m;
+}
+
+function finishOnboarding() {
+  $('onboarding').style.display = 'none';
+  $('main').classList.add('active');
+  ensureToday();
+  renderChat();
+  renderToday();
+  renderProgress();
+  if (!S.chats.length) {
+    const t = targets();
+    const greet =
+`Sawubona! 🙌 I'm your coach — and I remember everything you tell me.
+
+Your goal: ${S.memory[0] || 'get better every day'}${t ? `\nDaily target: ~${t.cal} kcal, ${t.protein}g protein` : ''}${S.profile.injuries ? `\nI'll plan around: ${S.profile.injuries}` : ''}
+
+Here's how this works: check in every morning (📌 Today tab), talk to me any time — vent, ask, log a meal — and I'll keep you moving. Small steps, every day. Shall we start with today's plan?`;
+    pushChat('coach', greet);
+  }
+}
+
+/* ---------- Chat ---------- */
+function pushChat(role, text, pending = false) {
+  const m = { role, text, ts: Date.now() };
+  if (!pending) {
+    S.chats.push(m);
+    if (role === 'coach') S.stats.messages++;
+    save();
+  }
+  const wrap = $('chatScroll');
+  const div = el('div', `msg ${role}${pending ? ' pending' : ''}`, esc(text) + `<div class="meta">${new Date(m.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>`);
+  div.dataset.ts = m.ts;
+  wrap.appendChild(div);
+  wrap.scrollTop = wrap.scrollHeight;
+  return div;
+}
+function daySeparators() {
+  const wrap = $('chatScroll');
+  wrap.querySelectorAll('.day-sep').forEach(e => e.remove());
+  let last = '';
+  [...wrap.children].forEach(c => {
+    if (!c.classList.contains('msg')) return;
+    const d = new Date(+c.dataset.ts).toDateString();
+    if (d !== last) {
+      last = d;
+      const label = d === new Date().toDateString() ? 'Today' : d;
+      wrap.insertBefore(el('div', 'day-sep', label), c);
+    }
+  });
+}
+function renderChat() {
+  const wrap = $('chatScroll');
+  wrap.innerHTML = '';
+  S.chats.forEach(m => {
+    const div = el('div', `msg ${m.role}`, esc(m.text) + `<div class="meta">${new Date(m.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>`);
+    div.dataset.ts = m.ts;
+    wrap.appendChild(div);
+  });
+  daySeparators();
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+const input = $('msgInput');
+input.addEventListener('input', () => {
+  $('sendBtn').disabled = !input.value.trim();
+  input.style.height = 'auto';
+  input.style.height = Math.min(input.scrollHeight, 110) + 'px';
+});
+input.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
+$('sendBtn').onclick = send;
+document.querySelectorAll('.qa-chip').forEach(c => c.onclick = () => {
+  input.value = c.dataset.q;
+  if (c.dataset.q.startsWith('I want to log a meal: ')) { input.value = c.dataset.q; input.focus(); $('sendBtn').disabled = false; return; }
+  send();
+});
+
+function send() {
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = ''; input.style.height = 'auto'; $('sendBtn').disabled = true;
+  pushChat('user', text);
+  const pendingDiv = pushChat('coach', '…', true);
+  askCoach(text).then(reply => {
+    pendingDiv.remove();
+    pushChat('coach', reply);
+  }).catch(() => {
+    pendingDiv.remove();
+    pushChat('coach', offlineReply(text));
+  });
+}
+
+/* ---------- Coach brain: n8n webhook, offline fallback ---------- */
+const CONTEXT_GOAL = { lose_weight: 'lose weight', build_muscle: 'build muscle', get_fit: 'get fitter', stay_healthy: 'stay consistent and accountable' };
+
+async function askCoach(text) {
+  if (!S.webhook) return offlineReply(text);
+  const payload = {
+    session_token: sessionToken(),
+    message: text,
+    user_profile: S.profile,
+    memory: S.memory.slice(-20),
+    conversation_history: S.chats.slice(-10).map(c => ({ role: c.role, text: c.text })),
+    stats: { ...S.stats, water: (S.days[todayKey()] || {}).water || 0 },
+    targets: targets(),
+    time_of_day: timeOfDay(),
+    day_of_week: new Date().toLocaleDateString('en-ZA', { weekday: 'long' }),
+    language: S.profile.lang,
+  };
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), 25000);
+  try {
+    const res = await fetch(S.webhook, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload), signal: ctrl.signal,
+    });
+    clearTimeout(to);
+    if (!res.ok) throw new Error('bad status ' + res.status);
+    const data = await res.json();
+    const reply = data.message || data.output || data.text || (typeof data === 'string' ? data : null);
+    if (!reply) throw new Error('no message field');
+    if (Array.isArray(data.memory_updates)) applyMemory(data.memory_updates);
+    if (data.suggested_actions) showSuggestions(data.suggested_actions);
+    return reply;
+  } catch (e) {
+    clearTimeout(to);
+    throw e;
+  }
+}
+
+function applyMemory(updates) {
+  updates.filter(Boolean).forEach(u => { if (!S.memory.includes(u)) S.memory.push(u); });
+  if (S.memory.length > 60) S.memory = S.memory.slice(-60);
+  save();
+}
+
+function showSuggestions(actions) {
+  const bar = $('quickActions');
+  bar.querySelectorAll('.qa-dyn').forEach(e => e.remove());
+  actions.slice(0, 3).forEach(a => {
+    const b = el('button', 'qa-chip qa-dyn', esc(a));
+    b.onclick = () => { input.value = a; send(); };
+    bar.appendChild(b);
+  });
+}
+
+function sessionToken() {
+  let t = localStorage.getItem('vc_session');
+  if (!t) { t = crypto.randomUUID(); localStorage.setItem('vc_session', t); }
+  return t;
+}
+function timeOfDay() {
+  const h = new Date().getHours();
+  return h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+}
+
+/* Offline coach: decent local heuristics so the app is never dead */
+function offlineReply(text) {
+  const t = text.toLowerCase();
+  const tg = targets();
+  const name = S.profile.name || '';
+  if (/log (a meal|my (breakfast|lunch|dinner|snack))|i (had|ate)/.test(t))
+    return `Logged ✓ — I've noted "${text}" for today.${tg ? `\nRough guidance: you're aiming for ~${tg.cal} kcal / ${tg.protein}g protein today.` : ''}\n\n(Offline mode — connect your n8n webhook in ⚙ Settings for full AI analysis.)`;
+  if (/motivat|inspire/.test(t))
+    return `Listen ${name || 'champ'} — motivation follows action, not the other way round. You don't need to feel ready. You need to do the next 10 minutes. Vuka. 🔥`;
+  if (/workout|exercise|train/.test(t))
+    return suggestWorkoutText();
+  if (/eat|food|meal|hungry|diet/.test(t))
+    return `For your goal (${CONTEXT_GOAL[S.profile.goal]}): build the plate around protein first — eggs, chicken, snoek, lentils — then veg, then starch the size of your fist. ${tg ? `Today you're targeting ~${tg.cal} kcal.` : ''}\n\n(Offline mode — connect n8n for personalised meal plans.)`;
+  if (/tired|sad|stressed|down|demotivated/.test(t))
+    return `I hear you. That's real. Two options: full rest (that's allowed, recovery counts), or a 10-minute walk to shake the fog. Which one feels doable right now?`;
+  if (/how am i doing|progress|week/.test(t)) {
+    const s = S.stats;
+    return `This week: ${s.checkins} check-ins, ${s.workouts} workouts, ${s.messages} coaching conversations, streak of ${s.streak} day(s). ${s.streak >= 3 ? "That's momentum — protect it." : "The streak is where the magic starts — let's build it to 3."}`;
+  }
+  return `Got it${name ? ', ' + name : ''}. I've noted that. ${/\?$/.test(text) ? 'Cut me a bit of slack here — I\'m in offline mode until you connect my brain (n8n webhook in ⚙ Settings), but I still remember your goals: ' + (S.memory[0] || 'showing up daily') + '.' : 'Anything else on your mind?'}`;
+}
+
+function suggestWorkoutText() {
+  const mins = S.profile.time || 30;
+  const knee = /knee/i.test(S.profile.injuries || '');
+  const kneeNote = knee ? ' (knee-friendly: no jumping, no deep lunges)' : '';
+  return `Today's ${mins}-min session${kneeNote}:\n\n1. Warm-up — 5 min march in place + arm circles\n2. ${knee ? 'Glute bridges 3×12' : 'Bodyweight squats 3×12'}\n3. Incline push-ups 3×10\n4. ${knee ? 'Step-ups (low step) 3×8/leg' : 'Reverse lunges 3×10/leg'}\n5. Plank 3×30s\n6. Cool-down stretch 5 min\n\nLog it when done and I'll count it toward your streak. 💪`;
+}
+
+/* ---------- Voice input ---------- */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recog = null, recording = false;
+if (SR) {
+  recog = new SR();
+  recog.lang = { en: 'en-ZA', af: 'af-ZA', zu: 'zu-ZA', xh: 'xh-ZA', st: 'st-ZA' }[S.profile?.lang] || 'en-ZA';
+  recog.interimResults = false;
+  recog.onresult = (e) => { input.value = e.results[0][0].transcript; $('sendBtn').disabled = false; };
+  recog.onend = () => { recording = false; $('micBtn').classList.remove('recording'); };
+} else $('micBtn').style.display = 'none';
+$('micBtn').onclick = () => {
+  if (!recog) return;
+  if (recording) { recog.stop(); return; }
+  try { recog.start(); recording = true; $('micBtn').classList.add('recording'); }
+  catch { /* already started */ }
+};
+
+/* ---------- Today view ---------- */
+function ensureToday() {
+  const k = todayKey();
+  if (!S.days[k]) S.days[k] = { checkin: null, water: 0, planHit: false };
+  // streak
+  if (S.stats.lastActive !== k) {
+    const y = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+    S.stats.streak = S.stats.lastActive === y ? S.stats.streak + 1 : 1;
+    S.stats.lastActive = k;
+    save();
+  }
+}
+function renderToday() {
+  const d = S.days[todayKey()] || { water: 0 };
+  const h = new Date().getHours();
+  $('checkinPrompt').textContent = h < 12 ? 'How are you feeling this morning?' : h < 17 ? 'How is the day going?' : 'How did today treat you?';
+  document.querySelectorAll('.mood').forEach(m => m.classList.toggle('selected', m.dataset.m === d.checkin));
+  $('planDate').textContent = new Date().toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'short' });
+  $('planItems').innerHTML = dailyPlan().map(p => `<div class="plan-item"><div class="plan-emoji">${p.emoji}</div><div><b>${esc(p.title)}</b><p>${esc(p.detail)}</p></div></div>`).join('');
+  renderWater(d.water);
+  daySeparators();
+}
+function dailyPlan() {
+  const tg = targets();
+  const mins = S.profile?.time || 30;
+  const plan = [
+    { emoji: '🏋', title: `${mins}-min movement`, detail: 'Ask me in chat for today\'s session — I\'ll match it to your injuries and energy.' },
+    { emoji: '🍽', title: 'Eat with intent', detail: tg ? `Target ~${tg.cal} kcal and ${tg.protein}g protein. Protein first, then veg, then starch.` : 'Protein first, then veg, then starch.' },
+    { emoji: '💧', title: '8 glasses of water', detail: 'Load shedding-proof: keep a filled bottle nearby.' },
+    { emoji: '🧘', title: '5-min reset', detail: 'Breathe, stretch, or step outside. Your head is part of the programme.' },
+    { emoji: '🌙', title: 'Sleep 7–8 hours', detail: 'Same time each night. Recovery is where results are built.' },
+  ];
+  return plan;
+}
+document.querySelectorAll('.mood').forEach(m => m.onclick = () => {
+  const k = todayKey();
+  S.days[k].checkin = m.dataset.m;
+  S.stats.checkins++;
+  save();
+  renderToday();
+  const replies = {
+    exhausted: 'Exhausted and still checking in? That\'s discipline most people don\'t have. Today we go easy — a walk, water, early night. That IS the workout today.',
+    tired: 'Noted. Low battery days are for maintenance, not heroics. 10 gentle minutes and a solid meal — deal?',
+    okay: 'Good enough to work with. Let\'s get the movement done early so the day can\'t steal it from you.',
+    good: 'Love it! Let\'s spend this energy — check the Today tab and bank that workout. 🔥',
+    great: 'Rocket fuel! 🚀 We\'re using this — your session today should feel like a victory lap. Go get it.',
+  };
+  pushChat('coach', replies[m.dataset.m]);
+  switchView('chat');
+});
+
+const CUPS = 8;
+function renderWater(n) {
+  const tr = $('waterTrack');
+  tr.innerHTML = '';
+  for (let i = 0; i < CUPS; i++) {
+    const c = el('div', 'water-cup' + (i < n ? ' full' : ''));
+    c.onclick = () => { S.days[todayKey()].water = i + 1; save(); renderWater(i + 1); renderProgress(); };
+    tr.appendChild(c);
+  }
+  $('waterLabel').textContent = `${n}/${CUPS}`;
+}
+
+/* ---------- Progress view ---------- */
+function renderProgress() {
+  const s = S.stats;
+  $('stStreak').textContent = s.streak;
+  $('stWorkouts').textContent = s.workouts;
+  $('stCheckins').textContent = s.checkins;
+  $('stMessages').textContent = s.messages;
+  $('stWater').textContent = (S.days[todayKey()] || {}).water || 0;
+  $('stPhotos').textContent = S.photos.length;
+
+  // week dots: last 7 days, hit = checkin or workout logged
+  const wd = $('weekDots');
+  wd.innerHTML = '';
+  const names = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  for (let i = 6; i >= 0; i--) {
+    const dt = new Date(Date.now() - i * 864e5);
+    const k = todayKey(dt);
+    const d = S.days[k];
+    const hit = d && (d.checkin || d.water >= CUPS);
+    const div = el('div', 'wd' + (hit ? ' hit' : ''), `<i>${hit ? '✓' : '·'}</i>${names[dt.getDay()]}`);
+    wd.appendChild(div);
+  }
+  // ring: % of daily habits done today
+  const d = S.days[todayKey()] || {};
+  const pct = Math.round(((d.checkin ? 1 : 0) + ((d.water || 0) / CUPS)) / 2 * 100);
+  $('ringFg').style.strokeDashoffset = 251.3 * (1 - pct / 100);
+  $('ringPct').textContent = pct + '%';
+
+  // weight trend
+  if (S.weights.length >= 2) {
+    const first = S.weights[0], last = S.weights[S.weights.length - 1];
+    const diff = (last.kg - first.kg).toFixed(1);
+    $('weightTrend').textContent = `${last.kg} kg · ${diff > 0 ? '+' : ''}${diff} kg since ${first.d}. Slow and steady wins.`;
+  } else if (S.weights.length === 1) {
+    $('weightTrend').textContent = `${S.weights[0].kg} kg logged. Log weekly — same day, same time, same scale.`;
+  } else $('weightTrend').textContent = 'Log your weight weekly to see the trend line here.';
+
+  // photos
+  const row = $('photoRow');
+  row.querySelectorAll('img').forEach(e => e.remove());
+  S.photos.forEach(src => { const img = new Image(); img.src = src; row.insertBefore(img, $('photoAdd')); });
+}
+
+$('weightSave').onclick = () => {
+  const v = parseFloat($('weightInput').value);
+  if (!v || v < 25 || v > 400) return;
+  const k = todayKey();
+  const existing = S.weights.find(w => w.d === k);
+  if (existing) existing.kg = v; else S.weights.push({ d: k, kg: v });
+  S.weights.sort((a, b) => a.d.localeCompare(b.d));
+  if (S.profile) S.profile.weight = v;
+  save();
+  $('weightInput').value = '';
+  renderProgress();
+  applyMemory([`Weighed in at ${v}kg on ${k}`]);
+  pushChat('coach', `Weighed in: ${v}kg ✓ Logged and remembered. Remember — the scale is data, not judgement. Trends over days, never single mornings.`);
+  switchView('chat');
+};
+
+$('photoAdd').onclick = () => {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*'; inp.capture = 'user';
+  inp.onchange = () => {
+    const f = inp.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      // downscale to keep localStorage small
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement('canvas');
+        const scale = Math.min(1, 360 / Math.max(img.width, img.height));
+        c.width = img.width * scale; c.height = img.height * scale;
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        S.photos.push(c.toDataURL('image/jpeg', 0.7));
+        save(); renderProgress();
+      };
+      img.src = r.result;
+    };
+    r.readAsDataURL(f);
+  };
+  inp.click();
+};
+
+/* ---------- Navigation ---------- */
+function switchView(v) {
+  document.querySelectorAll('.view').forEach(x => x.classList.toggle('active', x.id === 'view-' + v));
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.view === v));
+  if (v === 'chat') $('chatScroll').scrollTop = $('chatScroll').scrollHeight;
+}
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => switchView(b.dataset.view));
+
+/* ---------- Settings ---------- */
+$('btnSettings').onclick = () => {
+  $('setName').value = S.profile?.name || '';
+  $('setWebhook').value = S.webhook || '';
+  $('settings').classList.add('open');
+};
+$('closeSettings').onclick = () => {
+  if (S.profile) { S.profile.name = $('setName').value.trim(); $('hdName').textContent = S.profile.name || 'Coach'; }
+  const wh = $('setWebhook').value.trim();
+  if (wh !== S.webhook) { S.webhook = wh; save(); updateStatus(); }
+  save();
+  $('settings').classList.remove('open');
+};
+$('testWebhook').onclick = async () => {
+  const url = $('setWebhook').value.trim();
+  if (!url) return alert('Enter a webhook URL first.');
+  $('testWebhook').textContent = 'Testing…';
+  try {
+    const res = await fetch(url, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ test: true, session_token: sessionToken(), message: 'ping' }),
+    });
+    const j = await res.json().catch(() => null);
+    $('testWebhook').textContent = res.ok && j && (j.message || j.output) ? '✓ Webhook OK' : 'Responded, but no "message" field in reply';
+  } catch { $('testWebhook').textContent = '✗ Failed — check URL & CORS'; }
+};
+$('exportBtn').onclick = () => {
+  const blob = new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `vukacoach-export-${todayKey()}.json`;
+  a.click();
+};
+$('resetBtn').onclick = () => {
+  if (!confirm('Delete ALL data including chats, photos and weights? This cannot be undone.')) return;
+  localStorage.removeItem(LS_KEY); localStorage.removeItem('vc_session');
+  location.reload();
+};
+
+function updateStatus() {
+  const st = $('hdStatus');
+  if (S.webhook) { st.textContent = 'online'; st.classList.remove('offline'); }
+  else { st.textContent = 'offline mode'; st.classList.add('offline'); }
+}
+
+/* ---------- PWA ---------- */
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstall = e;
+  $('installBanner').style.display = 'flex';
+});
+$('installBtn').onclick = async () => {
+  if (!deferredInstall) return;
+  deferredInstall.prompt();
+  await deferredInstall.userChoice;
+  deferredInstall = null;
+  $('installBanner').style.display = 'none';
+};
+
+/* ---------- Boot ---------- */
+if (S.profile) {
+  finishOnboarding();
+  $('hdName').textContent = S.profile.name || 'Coach';
+  updateStatus();
+} else {
+  renderOnboarding();
+}
+</script>
+</body>
+</html>
