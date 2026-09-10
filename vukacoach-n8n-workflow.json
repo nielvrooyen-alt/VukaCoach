@@ -57,7 +57,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// ---- Parse Gemini's reply into the shape the app expects ----\nconst j = $input.item.json;\nlet out = { message: 'Sorry, my brain glitched — try that again?', suggested_actions: [], memory_updates: [] };\n\ntry {\n  const text = j.candidates?.[0]?.content?.parts?.[0]?.text;\n  if (text) {\n    const parsed = JSON.parse(text);\n    out.message = parsed.message || out.message;\n    out.suggested_actions = Array.isArray(parsed.suggested_actions) ? parsed.suggested_actions.slice(0, 3) : [];\n    out.memory_updates = Array.isArray(parsed.memory_updates) ? parsed.memory_updates : [];\n  } else {\n    const reason = j.candidates?.[0]?.finishReason || j.error?.message || 'unknown';\n    out.message = 'My brain could not answer this one (' + reason + '). Try rephrasing?';\n  }\n} catch (e) {\n  out.message = 'My brain returned something I could not read. Try again?';\n}\n\nreturn { json: out };"
+        "jsCode": "// ---- Parse Gemini's reply into the shape the app expects ----\nconst j = $input.item.json;\nlet out = { message: 'Sorry, my brain glitched — try that again?', suggested_actions: [], memory_updates: [] };\n\ntry {\n  const text = j.candidates?.[0]?.content?.parts?.[0]?.text;\n  if (text) {\n    const parsed = JSON.parse(text);\n    out.message = parsed.message || out.message;\n    out.suggested_actions = Array.isArray(parsed.suggested_actions) ? parsed.suggested_actions.slice(0, 3) : [];\n    out.memory_updates = Array.isArray(parsed.memory_updates) ? parsed.memory_updates : [];\n  } else {\n    const reason = j.candidates?.[0]?.finishReason || j.error?.message || 'unknown';\n    out.message = 'My brain could not answer this one (' + reason + '). Try rephrasing?';\n  }\n} catch (e) {\n  out.message = 'My brain returned something I could not read. Try again?';\n}\n\n// Carry the device token so the memory-write node can scope rows correctly\nout.session_token = $('Build Coach Prompt').item.json.session_token || null;\n\nreturn { json: out };"
       },
       "id": "a1b2c3d4-0004-4000-8000-000000000004",
       "name": "Shape App Reply",
@@ -75,7 +75,32 @@
       "name": "Respond to App",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [480, 0]
+      "position": [700, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://fxrpvssnlgvxykvnntil.supabase.co/rest/v1/memory_entries",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "PASTE_YOUR_SUPABASE_SERVICE_ROLE_KEY_HERE" },
+            { "name": "Authorization", "value": "Bearer PASTE_YOUR_SUPABASE_SERVICE_ROLE_KEY_HERE" },
+            { "name": "Prefer", "value": "resolution=merge-duplicates" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.memory_updates.filter(Boolean).map(m => ({ owner_token: $json.session_token, entry: m, source: 'ai' }))) }}",
+        "options": { "timeout": 10000 }
+      },
+      "id": "a1b2c3d4-0006-4000-8000-000000000006",
+      "name": "Log Memory to Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 100],
+      "onError": "continueRegularOutput",
+      "notes": "Persists the AI's memory_updates so the coach remembers across devices. Never runs on a 'ping' test (memory_updates is empty then, POSTing an empty array is a harmless no-op). Replace the service key placeholder — it is in Supabase Dashboard > Settings > API. This node is allowed to fail without breaking the user's reply."
     }
   ],
   "connections": {
@@ -89,6 +114,9 @@
       "main": [[{ "node": "Shape App Reply", "type": "main", "index": 0 }]]
     },
     "Shape App Reply": {
+      "main": [[{ "node": "Log Memory to Supabase", "type": "main", "index": 0 }]]
+    },
+    "Log Memory to Supabase": {
       "main": [[{ "node": "Respond to App", "type": "main", "index": 0 }]]
     }
   },

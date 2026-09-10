@@ -441,7 +441,7 @@
       <h2>⚙ Settings</h2>
       <div class="field"><label>Your name (what the coach calls you)</label><input id="setName" placeholder="e.g. Niel"></div>
       <div class="field"><label>n8n webhook URL</label><input id="setWebhook" placeholder="https://your-n8n.app/webhook/vukacoach"></div>
-      <p class="hint">Every message is POSTed here with the full VukaCoach payload (profile, memory, history, stats). Leave empty to use built-in offline coach replies. Test the endpoint with the button below.</p>
+      <p class="hint">By default every message goes to the official VukaCoach brain. You can point it at a different n8n webhook here (it receives the full payload: profile, memory, history, stats) or leave empty to use the default. Test the endpoint with the button below.</p>
       <button class="btn btn-ghost" id="testWebhook">Test webhook</button>
       <div class="field"><label>Export your data</label>
         <button class="btn btn-ghost" id="exportBtn">⬇ Download all my data (JSON)</button>
@@ -471,6 +471,15 @@
 
 const LS_KEY = 'vukacoach_v2';
 const todayKey = (d = new Date()) => d.toISOString().slice(0, 10);
+
+/* ---------- Production config ----------
+   The webhook is hardcoded so real users never configure anything.
+   The Settings field remains as a developer override. */
+const PROD_WEBHOOK = 'https://n8n.betscoutsa.co.za/webhook/vukacoach-webhook';
+const WEBHOOK_AUTH = 'ydIGHjslroc5f4gg0EUgt9r6eudjeoi38dnddmjn55163gfhdsk';
+const SB_URL = 'https://fxrpvssnlgvxykvnntil.supabase.co';
+const SB_KEY = 'sb_publishable_Yy_TVZ2Z3A_utmg-1LuuKg_FAwTG7Th';
+const PHOTO_CAP = 12;
 
 const DEFAULT_STATE = {
   profile: null,
@@ -554,6 +563,8 @@ $('obNext').onclick = () => {
   };
   S.memory = buildSeedMemory();
   save();
+  SB.push('vc_boot', { p_token: sessionToken(), p_profile: S.profile, p_lang: S.profile.lang });
+  SB.push('vc_seed_memory', { p_token: sessionToken(), p_entries: S.memory });
   finishOnboarding();
 };
 
@@ -650,10 +661,13 @@ function send() {
   if (!text) return;
   input.value = ''; input.style.height = 'auto'; $('sendBtn').disabled = true;
   pushChat('user', text);
+  SB.push('vc_chat_insert', { p_token: sessionToken(), p_role: 'user', p_text: text });
+  SB.push('vc_event', { p_token: sessionToken(), p_name: 'chat_sent' });
   const pendingDiv = pushChat('coach', '…', true);
   askCoach(text).then(reply => {
     pendingDiv.remove();
     pushChat('coach', reply);
+    SB.push('vc_chat_insert', { p_token: sessionToken(), p_role: 'coach', p_text: reply });
   }).catch(() => {
     pendingDiv.remove();
     pushChat('coach', offlineReply(text));
@@ -664,7 +678,8 @@ function send() {
 const CONTEXT_GOAL = { lose_weight: 'lose weight', build_muscle: 'build muscle', get_fit: 'get fitter', stay_healthy: 'stay consistent and accountable' };
 
 async function askCoach(text) {
-  if (!S.webhook) return offlineReply(text);
+  const url = S.webhook || PROD_WEBHOOK;
+  if (!url) return offlineReply(text);
   const payload = {
     session_token: sessionToken(),
     message: text,
@@ -680,8 +695,9 @@ async function askCoach(text) {
   const ctrl = new AbortController();
   const to = setTimeout(() => ctrl.abort(), 25000);
   try {
-    const res = await fetch(S.webhook, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-vuka-auth': WEBHOOK_AUTH },
       body: JSON.stringify(payload), signal: ctrl.signal,
     });
     clearTimeout(to);
@@ -719,6 +735,64 @@ function sessionToken() {
   if (!t) { t = crypto.randomUUID(); localStorage.setItem('vc_session', t); }
   return t;
 }
+
+/* ============================================================
+   Backend sync — Supabase via rpc functions, queued & offline-safe
+   All calls are fire-and-forget from the UI's perspective: changes
+   land in localStorage immediately and the queue drains to Supabase
+   when it can. Nothing in the UI waits on the network.
+   ============================================================ */
+
+const SB = {
+  queue: [],
+  timer: null,
+  load() {
+    try { this.queue = JSON.parse(localStorage.getItem('vc_syncq') || '[]'); } catch { this.queue = []; }
+  },
+  save() { try { localStorage.setItem('vc_syncq', JSON.stringify(this.queue.slice(-200))); } catch {} },
+  push(fn, args) {
+    this.queue.push({ fn, args });
+    this.save();
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => this.flush(), 3000);
+  },
+  async flush() {
+    if (!this.queue.length || !navigator.onLine) return;
+    const batch = this.queue.splice(0, this.queue.length);
+    this.save();
+    for (const item of batch) {
+      try {
+        await sbRpc(item.fn, item.args);
+      } catch {
+        // Re-queue; give up on an item after ~50 attempts so a
+        // permanently bad call can't clog the queue forever.
+        item.tries = (item.tries || 0) + 1;
+        if (item.tries < 50) this.queue.unshift(item);
+        this.save();
+        break;
+      }
+    }
+    if (this.queue.length && navigator.onLine) {
+      clearTimeout(this.timer);
+      this.timer = setTimeout(() => this.flush(), 5000);
+    }
+  },
+};
+
+async function sbRpc(fn, args) {
+  const res = await fetch(`${SB_URL}/rest/v1/rpc/${fn}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'apikey': SB_KEY },
+    body: JSON.stringify(args),
+  });
+  if (!res.ok) throw new Error(`rpc ${fn} failed: ${res.status}`);
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+window.addEventListener('online', () => SB.flush());
+SB.load();
+
 function timeOfDay() {
   const h = new Date().getHours();
   return h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
@@ -809,6 +883,8 @@ document.querySelectorAll('.mood').forEach(m => m.onclick = () => {
   S.days[k].checkin = m.dataset.m;
   S.stats.checkins++;
   save();
+  SB.push('vc_day_upsert', { p_token: sessionToken(), p_day: k, p_checkin: m.dataset.m });
+  SB.push('vc_event', { p_token: sessionToken(), p_name: 'checkin' });
   renderToday();
   const replies = {
     exhausted: 'Exhausted and still checking in? That\'s discipline most people don\'t have. Today we go easy — a walk, water, early night. That IS the workout today.',
@@ -827,7 +903,7 @@ function renderWater(n) {
   tr.innerHTML = '';
   for (let i = 0; i < CUPS; i++) {
     const c = el('div', 'water-cup' + (i < n ? ' full' : ''));
-    c.onclick = () => { S.days[todayKey()].water = i + 1; save(); renderWater(i + 1); renderProgress(); };
+    c.onclick = () => { S.days[todayKey()].water = i + 1; save(); SB.push('vc_day_upsert', { p_token: sessionToken(), p_day: todayKey(), p_water: i + 1 }); renderWater(i + 1); renderProgress(); };
     tr.appendChild(c);
   }
   $('waterLabel').textContent = `${n}/${CUPS}`;
@@ -885,6 +961,8 @@ $('weightSave').onclick = () => {
   S.weights.sort((a, b) => a.d.localeCompare(b.d));
   if (S.profile) S.profile.weight = v;
   save();
+  SB.push('vc_weight_upsert', { p_token: sessionToken(), p_day: k, p_kg: v });
+  SB.push('vc_event', { p_token: sessionToken(), p_name: 'weight_logged' });
   $('weightInput').value = '';
   renderProgress();
   applyMemory([`Weighed in at ${v}kg on ${k}`]);
@@ -907,6 +985,9 @@ $('photoAdd').onclick = () => {
         c.width = img.width * scale; c.height = img.height * scale;
         c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
         S.photos.push(c.toDataURL('image/jpeg', 0.7));
+        // Cap count: photos are base64 in localStorage — past ~15 they
+        // blow the 5MB quota and every save() silently fails after that.
+        while (S.photos.length > PHOTO_CAP) S.photos.shift();
         save(); renderProgress();
       };
       img.src = r.result;
@@ -965,7 +1046,7 @@ $('resetBtn').onclick = () => {
 
 function updateStatus() {
   const st = $('hdStatus');
-  if (S.webhook) { st.textContent = 'online'; st.classList.remove('offline'); }
+  if (S.webhook || PROD_WEBHOOK) { st.textContent = 'online'; st.classList.remove('offline'); }
   else { st.textContent = 'offline mode'; st.classList.add('offline'); }
 }
 
@@ -991,6 +1072,26 @@ if (S.profile) {
   finishOnboarding();
   $('hdName').textContent = S.profile.name || 'Coach';
   updateStatus();
+  SB.push('vc_boot', { p_token: sessionToken(), p_profile: S.profile, p_lang: S.profile.lang });
+  // New device / cleared browser: restore the coach from the server.
+  if (!S.chats.length) {
+    sbRpc('vc_pull', { p_token: sessionToken() }).then(remote => {
+      if (!remote) return;
+      if (remote.profile && Object.keys(remote.profile).length) S.profile = { ...S.profile, ...remote.profile };
+      if (Array.isArray(remote.memory) && remote.memory.length) S.memory = remote.memory;
+      if (Array.isArray(remote.chats) && remote.chats.length) {
+        S.chats = remote.chats.map(c => ({ role: c.role, text: c.text, ts: +c.ts }));
+      }
+      if (Array.isArray(remote.weights)) S.weights = remote.weights.map(w => ({ d: String(w.d), kg: +w.kg }));
+      if (remote.days && typeof remote.days === 'object') {
+        for (const [d, v] of Object.entries(remote.days)) {
+          S.days[d] = { checkin: v.checkin, water: v.water || 0, plan_hit: !!v.plan_hit, planHit: !!v.plan_hit };
+        }
+      }
+      save(); renderChat(); renderToday(); renderProgress();
+      pushChat('coach', "I'm back online with you — everything I remembered is right here. 🙌");
+    }).catch(() => {});
+  }
 } else {
   renderOnboarding();
 }
